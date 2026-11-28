@@ -38,7 +38,42 @@ export default function Coze() {
     if (!botId) {
       return
     }
-    loadCoze()
+    // 性能：SDK（约 150KB）不再和首屏抢带宽/主线程。
+    // 页面加载完后空闲时加载（最晚 4 秒），用户先有交互则立即加载；聊天按钮功能不变。
+    let done = false
+    let idleId = null
+    let timer = null
+    const events = ['pointerdown', 'keydown', 'touchstart', 'scroll']
+    const start = () => {
+      if (done) return
+      done = true
+      events.forEach(e => window.removeEventListener(e, start))
+      window.removeEventListener('load', onLoad)
+      loadCoze()
+    }
+    const onLoad = () => {
+      if ('requestIdleCallback' in window) {
+        idleId = window.requestIdleCallback(start, { timeout: 4000 })
+      } else {
+        timer = setTimeout(start, 2000)
+      }
+    }
+    events.forEach(e =>
+      window.addEventListener(e, start, { once: true, passive: true })
+    )
+    if (document.readyState === 'complete') {
+      onLoad()
+    } else {
+      window.addEventListener('load', onLoad)
+    }
+    return () => {
+      events.forEach(e => window.removeEventListener(e, start))
+      window.removeEventListener('load', onLoad)
+      if (idleId && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId)
+      }
+      if (timer) clearTimeout(timer)
+    }
   }, [])
 
   return <></>

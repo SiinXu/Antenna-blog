@@ -6,7 +6,7 @@ import { isBrowser, loadExternalResource } from '@/lib/utils'
 import mediumZoom from '@fisch0920/medium-zoom'
 import 'katex/dist/katex.min.css'
 import dynamic from 'next/dynamic'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { NotionRenderer } from 'react-notion-x'
 
 /**
@@ -16,6 +16,14 @@ import { NotionRenderer } from 'react-notion-x'
  * @returns
  */
 const NotionPage = ({ post, className }) => {
+  // 性能：西瓜视频 / B 站等第三方播放器 iframe 先不带 src 渲染，等页面 load 完成、空闲后，
+  // 再按接近视口的顺序挂上原地址（布局、尺寸与原来相同，播放器本身不变）。
+  const { blockMap, deferredEmbeds } = useMemo(
+    () => deferThirdPartyEmbeds(post?.blockMap),
+    [post?.blockMap]
+  )
+  useDeferredEmbeds(deferredEmbeds)
+
   // 是否关闭数据库和画册的点击跳转
   const POST_DISABLE_GALLERY_CLICK = siteConfig('POST_DISABLE_GALLERY_CLICK')
   const POST_DISABLE_DATABASE_CLICK = siteConfig('POST_DISABLE_DATABASE_CLICK')
@@ -107,7 +115,7 @@ const NotionPage = ({ post, className }) => {
       id='notion-article'
       className={`mx-auto overflow-hidden ${className || ''}`}>
       <NotionRenderer
-        recordMap={post?.blockMap}
+        recordMap={blockMap}
         mapPageUrl={mapPageUrl}
         mapImageUrl={mapImgUrl}
         forceCustomImages
@@ -330,3 +338,94 @@ const Tweet = ({ id }) => {
 }
 
 export default NotionPage
+
+const DEFERRED_EMBED_RE = /(^https?:\/\/([a-z0-9-]+\.)*(ixigua\.com|bilibili\.com)\/)/i
+
+/**
+ * 把第三方播放器 embed 的地址换成 about:blank（只复制被改的 block，不动原数据）
+ * @returns {{blockMap: object, deferredEmbeds: Array<[string, string]>}}
+ */
+function deferThirdPartyEmbeds(recordMap) {
+  const deferredEmbeds = []
+  if (!recordMap?.block) return { blockMap: recordMap, deferredEmbeds }
+  let blocks = null
+  for (const [id, entry] of Object.entries(recordMap.block)) {
+    const block = entry?.value
+    if (!block || block.type !== 'embed') continue
+    const source = block.properties?.source?.[0]?.[0]
+    const src = block.format?.display_source || source
+    if (!src || !DEFERRED_EMBED_RE.test(src)) continue
+    if (recordMap.signed_urls?.[block.id]) continue
+    blocks = blocks || { ...recordMap.block }
+    blocks[id] = {
+      ...entry,
+      value: {
+        ...block,
+        format: { ...block.format, display_source: 'about:blank' },
+        properties: { ...block.properties, source: [['about:blank']] }
+      }
+    }
+    deferredEmbeds.push([block.id, src])
+  }
+  if (!blocks) return { blockMap: recordMap, deferredEmbeds }
+  return { blockMap: { ...recordMap, block: blocks }, deferredEmbeds }
+}
+
+function useDeferredEmbeds(deferredEmbeds) {
+  useEffect(() => {
+    if (!deferredEmbeds?.length) return
+    let io = null
+    let idleId = null
+    let timer = null
+    const attach = () => {
+      const targets = []
+      deferredEmbeds.forEach(([id, src]) => {
+        const iframe = document.querySelector(
+          `figure.notion-asset-wrapper.${CSS.escape(id)} iframe`
+        )
+        if (iframe && iframe.getAttribute('src') === 'about:blank') {
+          iframe.dataset.src = src
+          targets.push(iframe)
+        }
+      })
+      if (!targets.length) return
+      const load = el => {
+        if (el.dataset.src) {
+          el.setAttribute('src', el.dataset.src)
+          delete el.dataset.src
+        }
+      }
+      if (!('IntersectionObserver' in window)) {
+        targets.forEach(load)
+        return
+      }
+      io = new IntersectionObserver(
+        entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              io.unobserve(entry.target)
+              load(entry.target)
+            }
+          })
+        },
+        { rootMargin: '600px 0px' }
+      )
+      targets.forEach(el => io.observe(el))
+    }
+    const onLoad = () => {
+      if ('requestIdleCallback' in window) {
+        idleId = window.requestIdleCallback(attach, { timeout: 3000 })
+      } else {
+        timer = setTimeout(attach, 1000)
+      }
+    }
+    if (document.readyState === 'complete') onLoad()
+    else window.addEventListener('load', onLoad, { once: true })
+    return () => {
+      window.removeEventListener('load', onLoad)
+      if (idleId && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timer) clearTimeout(timer)
+      if (io) io.disconnect()
+    }
+  }, [deferredEmbeds])
+}
