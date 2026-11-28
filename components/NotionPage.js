@@ -381,7 +381,7 @@ function useDeferredEmbeds(deferredEmbeds) {
       const targets = []
       deferredEmbeds.forEach(([id, src]) => {
         const iframe = document.querySelector(
-          `figure.notion-asset-wrapper.${CSS.escape(id)} iframe`
+          `figure.notion-asset-wrapper.notion-block-${id.replace(/-/g, '')} iframe`
         )
         if (iframe && iframe.getAttribute('src') === 'about:blank') {
           iframe.dataset.src = src
