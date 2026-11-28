@@ -1,5 +1,7 @@
 import { siteConfig } from '@/lib/config'
+import OptimizedGifVideo from '@/components/OptimizedGifVideo'
 import { compressImage, mapImgUrl } from '@/lib/notion/mapImage'
+import { resolveOptimizedMedia } from '@/lib/notion/optimizedMedia'
 import { isBrowser, loadExternalResource } from '@/lib/utils'
 import mediumZoom from '@fisch0920/medium-zoom'
 import 'katex/dist/katex.min.css'
@@ -108,7 +110,9 @@ const NotionPage = ({ post, className }) => {
         recordMap={post?.blockMap}
         mapPageUrl={mapPageUrl}
         mapImageUrl={mapImgUrl}
+        forceCustomImages
         components={{
+          Image: NotionImage,
           Code,
           Collection,
           Equation,
@@ -121,6 +125,52 @@ const NotionPage = ({ post, className }) => {
       <AdEmbed />
       <PrismMac />
     </div>
+  )
+}
+
+/**
+ * Image renderer for react-notion-x. Same markup as the library default
+ * (<img loading=lazy decoding=async>), except self-hosted GIFs become a
+ * muted looping MP4 with a poster, and optimized images get their original
+ * width/height so the browser can reserve space.
+ */
+const NotionImage = ({ src, alt, className, style, height, onLoad }) => {
+  const media = resolveOptimizedMedia(src)
+  const imgRef = useRef(null)
+  useEffect(() => {
+    // An image that finished loading before hydration never fires onLoad;
+    // call it so zoom still attaches (the library default used a ref for this).
+    const img = imgRef.current
+    if (img && img.complete && img.naturalWidth && onLoad) {
+      onLoad({ target: img })
+    }
+  }, [src])
+  if (media && media.type === 'video') {
+    return (
+      <OptimizedGifVideo
+        media={media}
+        alt={alt}
+        className={className}
+        style={style}
+        zoomable
+        intrinsicSize
+      />
+    )
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={className}
+      style={style}
+      ref={imgRef}
+      src={src}
+      alt={alt}
+      onLoad={onLoad}
+      width={media?.width}
+      height={height || media?.height}
+      loading='lazy'
+      decoding='async'
+    />
   )
 }
 
