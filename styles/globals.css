@@ -286,3 +286,14 @@ img {
 .adsbygoogle {
   overflow: hidden;
 }
+
+/* GIF -> MP4 swap: behave like the <img> it replaces (img default is fill). */
+:where(video.gif-video) {
+  object-fit: fill;
+}
+.notion-asset-wrapper video.gif-video {
+  width: 100%;
+  height: auto !important;
+  max-height: 100%;
+  margin: auto;
+}

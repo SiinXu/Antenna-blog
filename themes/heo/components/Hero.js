@@ -1,6 +1,8 @@
 // import Image from 'next/image'
 import { ArrowSmallRight, PlusSmall } from '@/components/HeroIcons'
 import LazyImage from '@/components/LazyImage'
+import OptimizedGifVideo from '@/components/OptimizedGifVideo'
+import { resolveOptimizedMedia } from '@/lib/notion/optimizedMedia'
 import { siteConfig } from '@/lib/config'
 import { useGlobal } from '@/lib/global'
 import Link from 'next/link'
@@ -394,14 +396,24 @@ function TodayCard({ cRef, siteInfo }) {
         </div>
 
         {/* 封面图 */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={siteInfo?.pageCover}
-          id='today-card-cover'
-          className={`${
-            isCoverUp ? '' : ' pointer-events-none'
-          } hover:scale-110 duration-1000 object-cover cursor-pointer today-card-cover absolute w-full h-full top-0`}
-        />
+        {resolveOptimizedMedia(siteInfo?.pageCover)?.type === 'video' ? (
+          <OptimizedGifVideo
+            media={resolveOptimizedMedia(siteInfo?.pageCover)}
+            id='today-card-cover'
+            className={`${
+              isCoverUp ? '' : ' pointer-events-none'
+            } hover:scale-110 duration-1000 object-cover cursor-pointer today-card-cover absolute w-full h-full top-0`}
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={siteInfo?.pageCover}
+            id='today-card-cover'
+            className={`${
+              isCoverUp ? '' : ' pointer-events-none'
+            } hover:scale-110 duration-1000 object-cover cursor-pointer today-card-cover absolute w-full h-full top-0`}
+          />
+        )}
       </div>
     </div>
   )

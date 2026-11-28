@@ -1,4 +1,6 @@
+import OptimizedGifVideo from '@/components/OptimizedGifVideo'
 import { siteConfig } from '@/lib/config'
+import { resolveOptimizedMedia } from '@/lib/notion/optimizedMedia'
 import Head from 'next/head'
 import { useEffect, useRef, useState } from 'react'
 
@@ -24,6 +26,9 @@ export default function LazyImage({
   const maxWidth = siteConfig('IMAGE_COMPRESS_WIDTH')
   const defaultPlaceholderSrc = siteConfig('IMG_LAZY_LOAD_PLACEHOLDER')
   const imageRef = useRef(null)
+  const optimizedMedia = resolveOptimizedMedia(src)
+  const gifVideo =
+    optimizedMedia && optimizedMedia.type === 'video' ? optimizedMedia : null
   const [currentSrc, setCurrentSrc] = useState(
     placeholderSrc || defaultPlaceholderSrc
   )
@@ -65,6 +70,9 @@ export default function LazyImage({
   }
 
   useEffect(() => {
+    if (gifVideo) {
+      return
+    }
     const adjustedImageSrc =
       adjustImgSize(src, maxWidth) || defaultPlaceholderSrc
 
@@ -117,6 +125,28 @@ export default function LazyImage({
 
   if (!src) {
     return null
+  }
+
+  if (gifVideo) {
+    return (
+      <>
+        <OptimizedGifVideo
+          media={gifVideo}
+          id={id}
+          alt={alt}
+          title={title}
+          className={className}
+          style={style}
+          onClick={onClick}
+          priority={priority}
+        />
+        {priority && (
+          <Head>
+            <link rel='preload' as='image' href={gifVideo.poster} />
+          </Head>
+        )}
+      </>
+    )
   }
 
   return (
