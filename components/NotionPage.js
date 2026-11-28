@@ -365,7 +365,9 @@ function deferThirdPartyEmbeds(recordMap) {
         properties: { ...block.properties, source: [['about:blank']] }
       }
     }
-    deferredEmbeds.push([block.id, src])
+    // 线上经 Cloudflare 会把 HTML 里的 http:// 改写成 https://，但脚本里设置的地址不会被改写，
+    // 这里直接用 https，避免混合内容被浏览器拦截（ixigua / bilibili 都支持 https）
+    deferredEmbeds.push([block.id, src.replace(/^http:\/\//i, 'https://')])
   }
   if (!blocks) return { blockMap: recordMap, deferredEmbeds }
   return { blockMap: { ...recordMap, block: blocks }, deferredEmbeds }
