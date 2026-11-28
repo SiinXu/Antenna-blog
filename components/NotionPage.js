@@ -372,7 +372,12 @@ function deferThirdPartyEmbeds(recordMap) {
 }
 
 function useDeferredEmbeds(deferredEmbeds) {
+  // 以内容为依赖，避免父组件重渲染时反复取消/重建观察器
+  const key = (deferredEmbeds || []).map(([id]) => id).join(',')
+  const listRef = useRef(deferredEmbeds)
+  listRef.current = deferredEmbeds
   useEffect(() => {
+    const deferredEmbeds = listRef.current
     if (!deferredEmbeds?.length) return
     let io = null
     let idleId = null
@@ -427,5 +432,5 @@ function useDeferredEmbeds(deferredEmbeds) {
       if (timer) clearTimeout(timer)
       if (io) io.disconnect()
     }
-  }, [deferredEmbeds])
+  }, [key])
 }
